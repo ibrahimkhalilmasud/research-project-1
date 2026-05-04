@@ -5,7 +5,7 @@ Run with:  streamlit run research_dashboard.py
 """
 
 import streamlit as st
-import os, re
+import os, re, base64
 from datetime import datetime
 from pathlib import Path
 from collections import defaultdict
@@ -13,6 +13,10 @@ from collections import defaultdict
 # ── config ───────────────────────────────────────────────────────
 BASE         = Path(__file__).parent
 REFRESH_SECS = 60
+
+# File extensions that can be previewed inline (no download needed)
+VIEWABLE_EXTS  = {".pdf", ".jpg", ".jpeg", ".png", ".avif"}
+MAX_PREVIEW_MB = 50   # PDFs above this size fall back to download
 
 st.set_page_config(
     page_title="Mr Mike — Research Dashboard",
@@ -244,6 +248,19 @@ details summary {
   text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;
 }
 
+/* ── INLINE VIEWER PANEL ── */
+.viewer-panel {
+  background: linear-gradient(145deg, #080E18 0%, #0A1525 100%);
+  border: 1px solid rgba(201,168,76,.35);
+  border-radius: 16px; padding: 16px 20px;
+  margin: 14px 0 22px 0;
+  box-shadow: 0 4px 30px rgba(0,0,0,.5);
+}
+.viewer-title {
+  font-size: .88rem; font-weight: 700; color: #C9A84C;
+  margin-bottom: 10px; display: flex; align-items: center; gap: 6px;
+}
+
 /* ── MOBILE RESPONSIVE ── */
 @media screen and (max-width: 768px) {
   .block-container { padding: 0.6rem 0.8rem 2rem 0.8rem !important; }
@@ -258,6 +275,11 @@ details summary {
   .cat-header       { font-size: .78rem !important; padding: 10px 14px !important; }
   .qo-title         { font-size: .76rem !important; }
   .qo-meta          { font-size: .64rem !important; }
+  /* Stack all Streamlit columns to full-width on small screens */
+  [data-testid="column"] { min-width: 100% !important; width: 100% !important; }
+  /* Viewer: use more vertical space on phone */
+  .viewer-panel object,
+  .viewer-panel iframe { height: 85vh !important; }
 }
 </style>
 """, unsafe_allow_html=True)
