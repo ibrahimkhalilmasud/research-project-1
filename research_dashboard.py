@@ -5,11 +5,10 @@ Run with:  streamlit run research_dashboard.py
 """
 
 import streamlit as st
-import os, re, subprocess
+import os, re
 from datetime import datetime
 from pathlib import Path
 from collections import defaultdict
-import time
 
 # ── config ───────────────────────────────────────────────────────
 BASE         = Path(__file__).parent
@@ -244,6 +243,22 @@ details summary {
   font-size: .65rem; color: #C9A84C; font-weight: 700;
   text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;
 }
+
+/* ── MOBILE RESPONSIVE ── */
+@media screen and (max-width: 768px) {
+  .block-container { padding: 0.6rem 0.8rem 2rem 0.8rem !important; }
+  .dash-title       { font-size: 1.05rem !important; }
+  .dash-sub         { font-size: .60rem !important; }
+  .dash-ts-val      { font-size: .65rem !important; }
+  .stat-box         { padding: 12px 6px !important; }
+  .stat-num         { font-size: 1.5rem !important; }
+  .stat-lbl         { font-size: .52rem !important; }
+  .file-title       { font-size: .80rem !important; }
+  .file-meta        { font-size: .62rem !important; }
+  .cat-header       { font-size: .78rem !important; padding: 10px 14px !important; }
+  .qo-title         { font-size: .76rem !important; }
+  .qo-meta          { font-size: .64rem !important; }
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -411,17 +426,19 @@ def clean_name(fname: str) -> str:
 def file_icon(fname: str) -> str:
     return FILE_ICONS.get(Path(fname).suffix.lower(), "📄")
 
-def open_file(path: Path):
-    try:
-        os.startfile(str(path))
-    except Exception:
-        subprocess.Popen(["explorer", str(path)])
+MAX_DOWNLOAD_MB = 100  # files larger than this won't be served as downloads
 
-def open_folder(path: Path):
+def get_download_data(path: Path):
+    """Read a file's bytes for use with st.download_button.
+    Returns None for files that are missing or exceed MAX_DOWNLOAD_MB."""
     try:
-        subprocess.Popen(["explorer", str(path.parent)])
-    except Exception:
-        pass
+        size_mb = path.stat().st_size / (1024 * 1024)
+        if size_mb > MAX_DOWNLOAD_MB:
+            return None, f"File too large to serve ({size_mb:.0f} MB)"
+        with open(path, "rb") as f:
+            return f.read(), None
+    except Exception as exc:
+        return None, str(exc)
 
 # ── scanner ───────────────────────────────────────────────────────
 @st.cache_data(ttl=REFRESH_SECS)
@@ -534,11 +551,22 @@ with st.sidebar:
             """, unsafe_allow_html=True)
             bc1, bc2 = st.columns(2)
             with bc1:
-                if st.button("📂 Open File", key="qo_open", use_container_width=True):
-                    open_file(qr["path"])
+                data, err = get_download_data(qr["path"])
+                if data:
+                    st.download_button(
+                        "📥 Download", data=data,
+                        file_name=qr["fname"],
+                        key="qo_download",
+                        use_container_width=True,
+                    )
+                elif err:
+                    st.warning(err, icon="⚠️")
             with bc2:
-                if st.button("🗂 Folder", key="qo_folder", use_container_width=True):
-                    open_folder(qr["path"])
+                st.markdown(
+                    f"<div style='font-size:.65rem;color:#4A5568;padding:8px 0;'>"
+                    f"{qr['ext'].replace('.','').upper()}</div>",
+                    unsafe_allow_html=True,
+                )
 
     st.markdown("---")
 
@@ -708,13 +736,16 @@ def render_file_card(r, col, border_color):
           {f'<div class="file-rec">→ {r["rec"]}</div>' if r["rec"] else ""}
         </div>""", unsafe_allow_html=True)
 
-        b1, b2 = st.columns([1,1])
-        with b1:
-            if st.button("📂 Open", key=f"o_{r['rel']}", use_container_width=True):
-                open_file(r["path"])
-        with b2:
-            if st.button("🗂 Folder", key=f"f_{r['rel']}", use_container_width=True):
-                open_folder(r["path"])
+        data, err = get_download_data(r["path"])
+        if data:
+            st.download_button(
+                "📥 Download", data=data,
+                file_name=r["fname"],
+                key=f"dl_{r['rel']}",
+                use_container_width=True,
+            )
+        elif err:
+            st.caption(f"⚠️ {err}")
 
 # ══════════════════════════════════════════════════════════════════
 # VIEW: BY CATEGORY
@@ -800,8 +831,16 @@ elif view_mode == "🆕 Recently Added":
                 </div>""", unsafe_allow_html=True)
             with c2:
                 st.markdown("<div style='margin-top:6px'></div>", unsafe_allow_html=True)
-                if st.button("Open", key=f"rec_{r['rel']}", use_container_width=True):
-                    open_file(r["path"])
+                data, err = get_download_data(r["path"])
+                if data:
+                    st.download_button(
+                        "📥", data=data,
+                        file_name=r["fname"],
+                        key=f"rec_{r['rel']}",
+                        use_container_width=True,
+                    )
+                elif err:
+                    st.caption(f"⚠️ {err}")
 
 # ══════════════════════════════════════════════════════════════════
 # VIEW: RISK REPORTS
@@ -839,11 +878,5 @@ st.markdown(f"""
 <div style='text-align:center;font-size:.68rem;color:#333;padding:6px 0 10px;'>
   Mr Mike Research Dashboard &nbsp;·&nbsp;
   <span style='color:#C9A84C;'>v3.0</span> &nbsp;·&nbsp;
-  Scanning: <code style='color:#C9A84C;background:transparent;font-size:.65rem;'>{BASE}</code>
-  &nbsp;·&nbsp; {len(records)} files indexed &nbsp;·&nbsp;
-  Auto-refresh every {REFRESH_SECS}s
+  {len(records)} files indexed
 </div>""", unsafe_allow_html=True)
-
-# ── AUTO-REFRESH ──────────────────────────────────────────────────
-time.sleep(REFRESH_SECS)
-st.rerun()
