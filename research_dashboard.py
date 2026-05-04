@@ -5,7 +5,7 @@ Run with:  streamlit run research_dashboard.py
 """
 
 import streamlit as st
-import os, re, base64, hashlib, binascii
+import os, re, base64
 from datetime import datetime
 from pathlib import Path
 from collections import defaultdict
@@ -24,97 +24,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
-
-# ── authentication ────────────────────────────────────────────────
-_PBKDF2_ITERATIONS = 600_000
-
-def _pbkdf2_hash(password: str, salt: str) -> str:
-    """Return hex-encoded PBKDF2-HMAC-SHA256 digest."""
-    dk = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), _PBKDF2_ITERATIONS)
-    return binascii.hexlify(dk).decode()
-
-def _verify_password(password: str, stored: str) -> bool:
-    """Verify *password* against a stored '<salt>$<hash>' string."""
-    try:
-        salt, expected = stored.split("$", 1)
-        return _pbkdf2_hash(password, salt) == expected
-    except ValueError:
-        return False
-
-def _load_credentials():
-    try:
-        auth = st.secrets["auth"]
-        return auth["username"], auth["password_hash"]
-    except KeyError as exc:
-        st.warning(f"⚠️ Auth config missing key: {exc}. Check `.streamlit/secrets.toml`.")
-        return None, None
-
-def _show_login_page():
-    """Render the login page and handle credential submission."""
-    st.markdown("""
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-    html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
-    .main { background: #07090F !important; }
-    .block-container { padding: 0 !important; }
-    /* hide sidebar on login screen */
-    section[data-testid="stSidebar"] { display: none !important; }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # Centre the card vertically
-    st.markdown("<div style='height:10vh'></div>", unsafe_allow_html=True)
-
-    _, card_col, _ = st.columns([1, 1.4, 1])
-    with card_col:
-        st.markdown("""
-        <div style='
-            background: linear-gradient(145deg, #0C1520 0%, #111E2E 100%);
-            border: 1px solid rgba(201,168,76,.35);
-            border-top: 3px solid #C9A84C;
-            border-radius: 18px;
-            padding: 36px 32px 28px;
-            box-shadow: 0 12px 50px rgba(0,0,0,.7);
-        '>
-            <div style='text-align:center; margin-bottom:24px;'>
-                <div style='font-size:2.6rem;'>🔬</div>
-                <div style='font-size:1.3rem; font-weight:800; color:#FFFFFF;
-                            letter-spacing:-.3px; margin-top:6px;'>Mr Mike</div>
-                <div style='font-size:.7rem; color:#7A5F2A; text-transform:uppercase;
-                            letter-spacing:1.4px; margin-top:3px;'>Research Dashboard</div>
-                <div style='margin-top:16px; font-size:.82rem; color:#4A5568;'>
-                    Sign in to access your knowledge base
-                </div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        with st.form("login_form", clear_on_submit=False):
-            username = st.text_input("Username", placeholder="Enter username")
-            password = st.text_input("Password", type="password", placeholder="Enter password")
-            submitted = st.form_submit_button("🔓  Sign In", use_container_width=True)
-
-        if submitted:
-            valid_user, valid_hash = _load_credentials()
-            if valid_user is None:
-                st.error("⚠️ Credentials not configured. Add them to `.streamlit/secrets.toml`.")
-            elif username == valid_user and _verify_password(password, valid_hash):
-                st.session_state["authenticated"] = True
-                st.session_state["auth_user"] = username
-                st.rerun()
-            else:
-                st.error("❌ Incorrect username or password.")
-
-def require_auth():
-    """Block the app behind a login screen. Call once at the top of your app."""
-    if "authenticated" not in st.session_state:
-        st.session_state["authenticated"] = False
-
-    if not st.session_state["authenticated"]:
-        _show_login_page()
-        st.stop()
-
-require_auth()
 
 
 st.markdown("""
@@ -614,18 +523,6 @@ with st.sidebar:
       <div style='font-size:.68rem;color:#7A5F2A;margin-top:2px;letter-spacing:1.2px;text-transform:uppercase;'>Research Dashboard</div>
     </div>
     """, unsafe_allow_html=True)
-
-    # Logged-in user + logout
-    auth_user = st.session_state.get("auth_user", "")
-    st.markdown(
-        f"<div style='text-align:center;font-size:.68rem;color:#4A5568;"
-        f"margin-bottom:4px;'>Signed in as <strong style='color:#C9A84C'>{auth_user}</strong></div>",
-        unsafe_allow_html=True,
-    )
-    if st.button("🚪  Sign Out", use_container_width=True, key="logout_btn"):
-        st.session_state["authenticated"] = False
-        st.session_state["auth_user"] = ""
-        st.rerun()
 
     st.markdown("---")
 
