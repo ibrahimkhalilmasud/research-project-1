@@ -1,0 +1,12 @@
+# Streamlit secrets (contains credentials — do NOT commit)
+.streamlit/secrets.toml
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+
+# OS
+.DS_Store
+Thumbs.db
